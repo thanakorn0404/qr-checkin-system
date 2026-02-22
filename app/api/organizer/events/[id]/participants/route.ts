@@ -1,0 +1,64 @@
+// app/api/organizer/events/[id]/participants/route.ts
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/db/mongodb";
+import { requireAuth } from "@/lib/auth";
+import { Event } from "@/models/Event";
+import { Checkin } from "@/models/Checkin";
+
+export async function GET(_req: Request, context: any) {
+  try {
+    const auth = await requireAuth();
+    if (auth.role !== "admin" && auth.role !== "organizer") {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    }
+
+    const { id } = await context.params;
+
+    await connectDB();
+
+    const event = await Event.findById(id).lean();
+    if (!event) return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
+
+    if (auth.role === "organizer") {
+      const createdBy = (event as any).createdBy ? String((event as any).createdBy) : null;
+      if (createdBy && createdBy !== auth.userId) {
+        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+      }
+    }
+
+    const rows = await Checkin.find({
+      eventId: event._id,
+      status: { $in: ["passed", "เข้าร่วมกิจกรรมแล้ว"] }, // ✅
+    })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const items = rows.map((c: any) => ({
+      id: String(c._id),
+      checkedInAt: c.createdAt,
+      status: c.status || "",
+      distanceMeters: typeof c.distanceMeters === "number" ? c.distanceMeters : null,
+      participant: {
+        studentId: c.participant?.studentId || "",
+        fullName: c.participant?.fullName || "",
+        year: c.participant?.year || "",
+        classGroup: c.participant?.classGroup || "",
+        major: c.participant?.major || "",
+        faculty: c.participant?.faculty || "",
+        email: c.participant?.email || "",
+        phone: c.participant?.phone || "",
+      },
+    }));
+
+    return NextResponse.json({
+      ok: true,
+      event: { id: String((event as any)._id), title: (event as any).title },
+      items,
+      count: items.length,
+    });
+  } catch (e: any) {
+    const msg = String(e?.message || "");
+    if (msg === "unauthorized") return NextResponse.json({ ok: false }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+  }
+}
