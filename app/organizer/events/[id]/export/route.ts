@@ -1,86 +1,114 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import ExcelJS from "exceljs";
 import { connectDB } from "@/lib/db/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { Event } from "@/models/Event";
 import { Checkin } from "@/models/Checkin";
-import { User } from "@/models/User";
-import ExcelJS from "exceljs";
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export const runtime = "nodejs"; // ✅ กัน ExcelJS พังบน Edge
+export const dynamic = "force-dynamic"; // ✅ กัน cache ตอน export
+
+type Ctx = { params: Promise<{ id: string }> };
+
+function safeFileName(name: string) {
+  return name.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "event";
+}
+
+export async function GET(_req: NextRequest, { params }: Ctx) {
   try {
     const auth = await requireAuth();
     if (auth.role !== "admin" && auth.role !== "organizer") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
+    const { id } = await params;
+
     await connectDB();
 
-    const event = await Event.findById(params.id).lean();
-    if (!event) return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
+    const event = await Event.findById(id).lean();
+    if (!event) {
+      return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
+    }
 
-    // ดึง checkin ทั้งหมดของ event นี้
-    const checkins = await Checkin.find({ eventId: event._id })
-      .select("userId createdAt studentLat studentLng distanceMeters status reason")
+    // (optional) organizer เห็นเฉพาะงานตัวเอง
+    if (auth.role === "organizer") {
+      const createdBy = (event as any).createdBy ? String((event as any).createdBy) : null;
+      if (createdBy && createdBy !== auth.userId) {
+        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+      }
+    }
+
+    const rows = await Checkin.find({ eventId: (event as any)._id })
       .sort({ createdAt: 1 })
       .lean();
-
-    const userIds = checkins.map((c: any) => c.userId);
-    const users = await User.find({ _id: { $in: userIds } })
-      .select("studentId username name role")
-      .lean();
-
-    const userMap = new Map<string, any>(users.map((u: any) => [String(u._id), u]));
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("participants");
 
     ws.columns = [
-      { header: "ลำดับ", key: "no", width: 8 },
-      { header: "รหัสนักศึกษา", key: "studentId", width: 16 },
-      { header: "ชื่อ", key: "name", width: 26 },
-      { header: "Username", key: "username", width: 18 },
-      { header: "Role", key: "role", width: 12 },
-      { header: "เวลาเช็คชื่อ", key: "checkedAt", width: 22 },
-      { header: "ระยะทาง(เมตร)", key: "distance", width: 14 },
-      { header: "สถานะ", key: "status", width: 12 },
-      { header: "เหตุผล", key: "reason", width: 24 },
+      { header: "No", key: "no", width: 6 },
+      { header: "Student ID", key: "studentId", width: 18 },
+      { header: "Full Name", key: "fullName", width: 26 },
+      { header: "Year", key: "year", width: 10 },
+      { header: "Class Group", key: "classGroup", width: 14 },
+      { header: "Major", key: "major", width: 22 },
+      { header: "Faculty", key: "faculty", width: 22 },
+      { header: "Email", key: "email", width: 26 },
+      { header: "Phone", key: "phone", width: 16 },
+      { header: "Checked In At", key: "checkedInAt", width: 22 },
+      { header: "Distance (m)", key: "distanceMeters", width: 14 },
+      { header: "Status", key: "status", width: 12 },
     ];
 
-    checkins.forEach((c: any, idx: number) => {
-      const u = userMap.get(String(c.userId));
-      ws.addRow({
-        no: idx + 1,
-        studentId: u?.studentId || "",
-        name: u?.name || "",
-        username: u?.username || "",
-        role: u?.role || "",
-        checkedAt: new Date(c.createdAt).toLocaleString(),
-        distance: c.distanceMeters ?? "",
-        status: c.status || "",
-        reason: c.reason || "",
-      });
-    });
-
     ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: "frozen", ySplit: 1 }];
 
-    const buf = await wb.xlsx.writeBuffer();
+    if (rows.length === 0) {
+      ws.addRow({ fullName: "ไม่มีผู้เข้าร่วมกิจกรรม" });
+    } else {
+      rows.forEach((c: any, idx: number) => {
+        const p = c.participant || {};
+        ws.addRow({
+          no: idx + 1,
+          studentId: p.studentId || "",
+          fullName: p.fullName || "",
+          year: p.year || "",
+          classGroup: p.classGroup || "",
+          major: p.major || "",
+          faculty: p.faculty || "",
+          email: p.email || "",
+          phone: p.phone || "",
+          checkedInAt: c.createdAt ? new Date(c.createdAt).toLocaleString() : "",
+          distanceMeters: typeof c.distanceMeters === "number" ? c.distanceMeters : "",
+          status: c.status || "",
+        });
+      });
+    }
 
-    const filename = `event_${String(event._id)}_participants.xlsx`;
+    const fileName = `participants_${safeFileName(String((event as any).title || "event"))}.xlsx`;
 
-    return new NextResponse(buf as any, {
+    // ExcelJS => ArrayBuffer, แปลงเป็น Buffer ให้ Next ส่ง binary ชัวร์
+    const arrayBuffer = await wb.xlsx.writeBuffer();
+    const buffer = Buffer.from(arrayBuffer as ArrayBuffer);
+
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
       },
     });
   } catch (e: any) {
     const msg = String(e?.message || "");
-    if (msg === "unauthorized") return NextResponse.json({ ok: false }, { status: 401 });
+    if (msg === "unauthorized") {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+
+    console.error("[EXPORT_ERROR]", e);
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }

@@ -1,29 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { connectDB } from "@/lib/db/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { Event } from "@/models/Event";
 import { Checkin } from "@/models/Checkin";
 
-export const runtime = "nodejs";          // ✅ สำคัญ: กัน ExcelJS พังบน Edge
-export const dynamic = "force-dynamic";   // ✅ กัน cache ตอน export
+export const runtime = "nodejs"; // ✅ กัน ExcelJS พังบน Edge
+export const dynamic = "force-dynamic"; // ✅ กัน cache ตอน export
 
-type Ctx = { params: { id: string } } | { params: Promise<{ id: string }> };
+type Ctx = { params: Promise<{ id: string }> };
 
 function safeFileName(name: string) {
   return name.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "event";
 }
 
-export async function GET(_req: Request, context: Ctx) {
+export async function GET(_req: NextRequest, { params }: Ctx) {
   try {
     const auth = await requireAuth();
     if (auth.role !== "admin" && auth.role !== "organizer") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    // ✅ รองรับทั้ง params เป็น object และ Promise
-    const { id } =
-      "then" in (context as any).params ? await (context as any).params : (context as any).params;
+    const { id } = await params;
 
     await connectDB();
 
@@ -66,7 +64,6 @@ export async function GET(_req: Request, context: Ctx) {
     ws.views = [{ state: "frozen", ySplit: 1 }];
 
     if (rows.length === 0) {
-      // ✅ ไฟล์ยังต้องดาวน์โหลดได้ (ไม่คืน server_error)
       ws.addRow({ fullName: "ไม่มีผู้เข้าร่วมกิจกรรม" });
     } else {
       rows.forEach((c: any, idx: number) => {
@@ -89,24 +86,29 @@ export async function GET(_req: Request, context: Ctx) {
     }
 
     const fileName = `participants_${safeFileName(String((event as any).title || "event"))}.xlsx`;
-    const buffer = await wb.xlsx.writeBuffer();
 
-    return new NextResponse(buffer as any, {
+    // ExcelJS => ArrayBuffer, แปลงเป็น Buffer ให้ Next ส่ง binary ชัวร์
+    const arrayBuffer = await wb.xlsx.writeBuffer();
+    const buffer = Buffer.from(arrayBuffer as ArrayBuffer);
+
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${fileName}"`,
-        "Cache-Control": "no-store",
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
       },
     });
   } catch (e: any) {
     const msg = String(e?.message || "");
-    if (msg === "unauthorized") return NextResponse.json({ ok: false }, { status: 401 });
+    if (msg === "unauthorized") {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
 
-    // ✅ ช่วย debug ให้เห็นใน terminal
     console.error("[EXPORT_ERROR]", e);
-
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }

@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const auth = requireAuth();
+    const auth = await requireAuth();
     if (auth.role !== "admin") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }

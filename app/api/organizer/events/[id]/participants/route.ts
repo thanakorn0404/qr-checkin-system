@@ -1,23 +1,26 @@
-// app/api/organizer/events/[id]/participants/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { Event } from "@/models/Event";
 import { Checkin } from "@/models/Checkin";
 
-export async function GET(_req: Request, context: any) {
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function GET(_req: NextRequest, { params }: Ctx) {
   try {
     const auth = await requireAuth();
     if (auth.role !== "admin" && auth.role !== "organizer") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const { id } = await context.params;
+    const { id } = await params;
 
     await connectDB();
 
     const event = await Event.findById(id).lean();
-    if (!event) return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
+    if (!event) {
+      return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
+    }
 
     if (auth.role === "organizer") {
       const createdBy = (event as any).createdBy ? String((event as any).createdBy) : null;
@@ -27,8 +30,8 @@ export async function GET(_req: Request, context: any) {
     }
 
     const rows = await Checkin.find({
-      eventId: event._id,
-      status: { $in: ["passed", "เข้าร่วมกิจกรรมแล้ว"] }, // ✅
+      eventId: (event as any)._id,
+      status: { $in: ["passed", "เข้าร่วมกิจกรรมแล้ว"] },
     })
       .sort({ createdAt: 1 })
       .lean();

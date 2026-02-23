@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+// app/api/events/[id]/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { connectDB } from "@/lib/db/mongodb";
 import { Event } from "@/models/Event";
@@ -7,12 +8,14 @@ import mongoose from "mongoose";
 
 /* ------------------ schema ------------------ */
 
-const BoxSchema = z.object({
-  north: z.number(),
-  south: z.number(),
-  east: z.number(),
-  west: z.number(),
-}).partial();
+const BoxSchema = z
+  .object({
+    north: z.number(),
+    south: z.number(),
+    east: z.number(),
+    west: z.number(),
+  })
+  .partial();
 
 const PatchSchema = z.object({
   title: z.string().min(2).max(200).optional(),
@@ -25,12 +28,11 @@ const PatchSchema = z.object({
   geoBox: BoxSchema.optional(),
 });
 
+type Ctx = { params: Promise<{ id: string }> };
+
 /* ================== PATCH ================== */
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
 
@@ -86,18 +88,13 @@ export async function PATCH(
     if (d.geoBox) patch.geoBox = d.geoBox;
 
     /* --- update --- */
-    const updated = await Event.findByIdAndUpdate(
-      id,
-      { $set: patch },
-      { new: true }
-    ).lean();
+    const updated = await Event.findByIdAndUpdate(id, { $set: patch }, { new: true }).lean();
 
     if (!updated) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, event: { id: String(updated._id) } });
-
+    return NextResponse.json({ ok: true, event: { id: String((updated as any)._id) } });
   } catch (e: any) {
     if (String(e?.message) === "unauthorized") {
       return NextResponse.json({ ok: false }, { status: 401 });
@@ -108,10 +105,7 @@ export async function PATCH(
 
 /* ================== DELETE ================== */
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
 
@@ -131,10 +125,9 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
     }
 
-    await Event.deleteOne({ _id: existed._id });
+    await Event.deleteOne({ _id: (existed as any)._id });
 
     return NextResponse.json({ ok: true });
-
   } catch (e: any) {
     if (String(e?.message) === "unauthorized") {
       return NextResponse.json({ ok: false }, { status: 401 });

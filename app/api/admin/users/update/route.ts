@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/mongodb";
 import { User } from "@/models/User";
 import { requireAuth } from "@/lib/auth";
@@ -14,7 +14,7 @@ const BodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const auth = requireAuth();
+    const auth = await requireAuth();
     if (auth.role !== "admin") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }

@@ -84,18 +84,22 @@ export default function CheckinPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  function niceError(r: Result): string {
-    if ((r as any).ok) return (r as any).message;
+ function niceError(r: Result): string {
+  if ((r as any).ok) return (r as any).message;
 
-    if (r.error === "already_checked_in") return "คุณเช็คชื่อกิจกรรมนี้ไปแล้ว";
-    if (r.error === "out_of_time") return r.message || "ยังไม่ถึงเวลาเช็คชื่อ หรือหมดเวลาแล้ว";
-    if (r.error === "outside_box") return r.message || "อยู่นอกพื้นที่กิจกรรม";
-    if (r.error === "outside_radius") return r.message || "อยู่นอกพื้นที่กิจกรรม";
-    if (r.error === "event_not_found") return "ไม่พบกิจกรรม";
-    if (r.error === "invalid_payload") return "กรอกข้อมูลไม่ครบ หรือพิกัดไม่ถูกต้อง";
-    if (r.error === "unauthorized") return "กรุณา login ก่อน";
-    return `เช็คชื่อไม่สำเร็จ: ${r.error}`;
-  }
+  const err = (r as any).error as string | undefined;
+  const msg = (r as any).message as string | undefined;
+
+  if (err === "already_checked_in") return "คุณเช็คชื่อกิจกรรมนี้ไปแล้ว";
+  if (err === "out_of_time") return msg || "ยังไม่ถึงเวลาเช็คชื่อ หรือหมดเวลาแล้ว";
+  if (err === "outside_box") return msg || "อยู่นอกพื้นที่กิจกรรม";
+  if (err === "outside_radius") return msg || "อยู่นอกพื้นที่กิจกรรม";
+  if (err === "event_not_found") return "ไม่พบกิจกรรม";
+  if (err === "invalid_payload") return "กรอกข้อมูลไม่ครบ หรือพิกัดไม่ถูกต้อง";
+  if (err === "unauthorized") return "กรุณา login ก่อน";
+
+  return `เช็คชื่อไม่สำเร็จ: ${err || "unknown_error"}`;
+}
 
   // ✅ validate ก่อนกดเช็คชื่อ
   const canSubmit = useMemo(() => {

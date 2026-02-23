@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function ChangePasswordPage() {
+function ChangePasswordInner() {
   const router = useRouter();
   const sp = useSearchParams();
   const nextUrl = sp.get("next") || "/dashboard";
@@ -17,7 +17,12 @@ export default function ChangePasswordPage() {
     (async () => {
       const res = await fetch("/api/auth/me", { credentials: "include" });
       const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) router.push(`/login?next=${encodeURIComponent("/change-password")}`);
+
+      if (!res.ok || !data?.ok) {
+        router.push(`/login?next=${encodeURIComponent("/change-password")}`);
+        return;
+      }
+
       // ถ้าไม่ต้องบังคับแล้ว ก็กลับได้
       if (data?.user?.mustChangePassword === false) router.push(nextUrl);
     })();
@@ -87,5 +92,19 @@ export default function ChangePasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChangePasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+          กำลังโหลด...
+        </div>
+      }
+    >
+      <ChangePasswordInner />
+    </Suspense>
   );
 }

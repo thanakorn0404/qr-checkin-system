@@ -21,10 +21,10 @@ export async function GET(req: Request) {
     errorCorrectionLevel: "M",
   });
 
-  return new NextResponse(pngBuffer, {
-    headers: {
-      "Content-Type": "image/png",
-      "Cache-Control": "no-store",
-    },
-  });
+return new NextResponse(new Uint8Array(pngBuffer), {
+  headers: {
+    "Content-Type": "image/png",
+    "Cache-Control": "no-store",
+  },
+});
 }

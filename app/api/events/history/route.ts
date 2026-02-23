@@ -6,7 +6,7 @@ import { requireAuth } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const auth = requireAuth();
+    const auth = await requireAuth();
     await connectDB();
 
     const checkins = await Checkin.find({ userId: auth.userId })
