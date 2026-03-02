@@ -1,4 +1,7 @@
 // app/ui.ts
+export function cx(...cls: (string | false | null | undefined)[]) {
+  return cls.filter(Boolean).join(" ");
+}
 
 export const theme = {
   page: `
@@ -38,5 +41,20 @@ export const theme = {
     outline-none
     transition
     bg-white
-  `
+  `,
+    h1: `text-2xl font-semibold
+    `,
+    sub: `text-white/60 text-sm
+    `,
+    btn: `inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium transition disabled:opacity-60
+    `,
+    btnGhost: `border border-white/10 bg-white/5 hover:bg-white/10
+    `,
+    border: `border border-white/10
+    `,
+    shadow: `shadow-lg shadow-black/30
+    `,
+    h2: `text-lg font-semibold
+    `,
 };
+
