@@ -22,8 +22,8 @@ type EventItem = {
 
 type ParticipantItem = {
   id: string;
-  checkedInAt?: string; // บาง API อาจส่งมา
-  createdAt?: string; // บาง API อาจส่งมา
+  checkedInAt?: string;
+  createdAt?: string;
   status?: string;
   distanceMeters?: number | null;
   participant: {
@@ -40,6 +40,20 @@ type ParticipantItem = {
 
 type Toast = { type: "success" | "error"; text: string } | null;
 
+const UI = {
+  btn: "h-9 px-4 rounded-xl border border-sky-200 bg-white hover:bg-sky-50 transition text-sm font-medium text-slate-700",
+  btnPrimary:
+    "h-10 px-4 rounded-2xl font-semibold text-white bg-gradient-to-r from-sky-500 to-blue-500 shadow-md shadow-sky-200/70 hover:shadow-lg transition",
+  btnDanger:
+    "h-9 px-4 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition text-sm font-medium text-red-600",
+  card: "rounded-3xl border border-sky-100 bg-white p-5 shadow-sm hover:shadow-md transition",
+  section: "mt-4 rounded-3xl border border-sky-100 bg-white/80 backdrop-blur shadow-xl shadow-sky-100/60 p-6",
+  input:
+    "mt-1 w-full rounded-2xl border border-sky-200 bg-white px-4 py-2.5 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200",
+  textarea:
+    "mt-1 w-full rounded-2xl border border-sky-200 bg-white px-4 py-2.5 outline-none min-h-[80px] focus:border-sky-400 focus:ring-2 focus:ring-sky-200",
+};
+
 export default function OrganizerDashboardPage() {
   const router = useRouter();
 
@@ -48,14 +62,14 @@ export default function OrganizerDashboardPage() {
   const [upcoming, setUpcoming] = useState<EventItem[]>([]);
   const [error, setError] = useState("");
 
-  // ✅ toast
+  // toast
   const [toast, setToast] = useState<Toast>(null);
   function showToast(t: Toast) {
     setToast(t);
     setTimeout(() => setToast(null), 2500);
   }
 
-  // ✅ modal state (แก้ไข)
+  // modal state (แก้ไข)
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<EventItem | null>(null);
 
@@ -66,7 +80,7 @@ export default function OrganizerDashboardPage() {
   const [editActive, setEditActive] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // ✅ modal รายละเอียด (Map + รายชื่อ)
+  // modal รายละเอียด (Map + รายชื่อ)
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailEvent, setDetailEvent] = useState<EventItem | null>(null);
   const [participants, setParticipants] = useState<ParticipantItem[]>([]);
@@ -99,7 +113,7 @@ export default function OrganizerDashboardPage() {
     return `${window.location.origin}/checkin/${token}`;
   }
 
-  // ✅ center + map links
+  // center + map links
   function getCenterFromEvent(e: EventItem) {
     const box = e.geoBox || null;
     const hasBox =
@@ -152,7 +166,7 @@ export default function OrganizerDashboardPage() {
     return `https://www.openstreetmap.org/export/embed.html?bbox=${west},${south},${east},${north}&layer=mapnik&marker=${c.lat},${c.lng}`;
   }
 
-  // ✅ เปิด modal แก้ไข
+  // เปิด modal แก้ไข
   function openEdit(e: EventItem) {
     setEditing(e);
     setEditTitle(e.title || "");
@@ -167,7 +181,7 @@ export default function OrganizerDashboardPage() {
     setEditOpen(true);
   }
 
-  // ✅ save PATCH
+  // save PATCH
   async function saveEdit() {
     if (!editing) return;
 
@@ -204,7 +218,7 @@ export default function OrganizerDashboardPage() {
     showToast({ type: "success", text: "บันทึกการแก้ไขแล้ว ✅" });
   }
 
-  // ✅ DELETE
+  // DELETE
   async function deleteEvent(e: EventItem) {
     if (!confirm(`ยืนยันลบกิจกรรม:\n${e.title}\n\n* ลบแล้วกู้คืนไม่ได้`)) return;
 
@@ -222,12 +236,12 @@ export default function OrganizerDashboardPage() {
     showToast({ type: "success", text: "ลบกิจกรรมแล้ว ✅" });
   }
 
-  // ✅ export excel
+  // export excel
   function exportExcel(eventId: string) {
     window.open(`/api/organizer/events/${eventId}/export`, "_blank");
   }
 
-  // ✅ เปิดรายชื่อ (Map + รายชื่อ)
+  // เปิดรายชื่อ (Map + รายชื่อ)
   async function openDetail(e: EventItem) {
     setDetailEvent(e);
     setDetailOpen(true);
@@ -253,14 +267,14 @@ export default function OrganizerDashboardPage() {
 
   return (
     <div>
-      {/* ✅ Toast */}
+      {/* Toast */}
       {toast ? (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60]">
           <div
-            className={`rounded-xl px-4 py-2 text-sm border shadow-xl ${
+            className={`rounded-2xl px-4 py-2 text-sm border shadow-lg ${
               toast.type === "success"
-                ? "bg-green-500/15 border-green-500/30 text-green-200"
-                : "bg-red-500/15 border-red-500/30 text-red-200"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : "bg-red-50 border-red-200 text-red-700"
             }`}
           >
             {toast.text}
@@ -270,67 +284,53 @@ export default function OrganizerDashboardPage() {
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-semibold">Organizer Dashboard</h1>
-          <p className="text-white/60 mt-1">รายการกิจกรรม (อัปเดตทุก 5 วินาที)</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Organizer Dashboard</h1>
+          <p className="text-slate-500 mt-1">รายการกิจกรรม (อัปเดตทุก 5 วินาที)</p>
         </div>
 
-        <button
-          onClick={() => router.push("/organizer/create-event")}
-          className="rounded-xl bg-white text-black font-semibold px-3 py-2 text-sm"
-        >
+        <button onClick={() => router.push("/organizer/create-event")} className={UI.btnPrimary}>
           + สร้างกิจกรรม
         </button>
       </div>
 
       {error ? (
-        <div className="mt-4 rounded-xl p-3 text-sm border bg-red-500/10 border-red-500/30 text-red-200">{error}</div>
+        <div className="mt-4 rounded-2xl p-3 text-sm border bg-red-50 border-red-200 text-red-700">{error}</div>
       ) : null}
 
-      {/* ✅ กำลังจัด */}
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+      {/* กำลังจัด */}
+      <div className={UI.section}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">กำลังจัดอยู่ตอนนี้</h2>
-          <div className="text-sm text-white/60">{ongoing.length} กิจกรรม</div>
+          <h2 className="text-lg font-semibold text-slate-900">กำลังจัดอยู่ตอนนี้</h2>
+          <div className="text-sm text-slate-500">{ongoing.length} กิจกรรม</div>
         </div>
 
         {loading ? (
-          <div className="text-white/60 mt-3">กำลังโหลด...</div>
+          <div className="text-slate-500 mt-3">กำลังโหลด...</div>
         ) : ongoing.length === 0 ? (
-          <div className="text-white/70 mt-3">ตอนนี้ยังไม่มีกิจกรรมที่กำลังจัด</div>
+          <div className="text-slate-600 mt-3">ตอนนี้ยังไม่มีกิจกรรมที่กำลังจัด</div>
         ) : (
           <div className="mt-3 grid gap-3">
             {ongoing.map((e) => (
-              <div key={e.id} className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                <div className="font-semibold">{e.title}</div>
-                {e.description ? <div className="text-white/70 mt-1">{e.description}</div> : null}
-                <div className="text-white/60 text-sm mt-2">
+              <div key={e.id} className={UI.card}>
+                <div className="font-semibold text-slate-900">{e.title}</div>
+
+                {e.description ? <div className="text-slate-600 mt-1">{e.description}</div> : null}
+
+                <div className="text-slate-500 text-sm mt-2">
                   {new Date(e.startAt).toLocaleString()} - {new Date(e.endAt).toLocaleString()}
                 </div>
 
-                <div className="text-white/70 text-sm mt-2">
-                  เช็คชื่อแล้ว: <span className="font-semibold">{e.checkinCount}</span> คน
+                <div className="text-slate-600 text-sm mt-2">
+                  เช็คชื่อแล้ว: <span className="font-semibold text-slate-900">{e.checkinCount}</span> คน
                 </div>
 
                 <div className="mt-3 flex gap-2 flex-wrap">
-                  {/* ✅ ปุ่มรายชื่อ + จำนวนคน */}
-                  <button
-                    onClick={() => openDetail(e)}
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                  >
+                  <button onClick={() => openDetail(e)} className={UI.btn}>
                     รายชื่อผู้เข้าร่วมกิจกรรม
                   </button>
 
-                  {/* <a
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                    href={`/checkin/${e.qrToken}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    เปิดหน้าเช็คชื่อ
-                  </a> */}
-
                   <a
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
+                    className={UI.btn}
                     href={`/api/qr?data=${encodeURIComponent(checkinUrl(e.qrToken))}`}
                     target="_blank"
                     rel="noreferrer"
@@ -338,24 +338,15 @@ export default function OrganizerDashboardPage() {
                     เปิด QR
                   </a>
 
-                  <button
-                    onClick={() => exportExcel(e.id)}
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                  >
+                  <button onClick={() => exportExcel(e.id)} className={UI.btn}>
                     Export Excel
                   </button>
 
-                  <button
-                    onClick={() => openEdit(e)}
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                  >
+                  <button onClick={() => openEdit(e)} className={UI.btn}>
                     แก้ไข
                   </button>
 
-                  <button
-                    onClick={() => deleteEvent(e)}
-                    className="rounded-xl border border-red-500/30 bg-red-500/10 text-red-200 px-3 py-2 text-sm"
-                  >
+                  <button onClick={() => deleteEvent(e)} className={UI.btnDanger}>
                     ลบ
                   </button>
                 </div>
@@ -365,41 +356,38 @@ export default function OrganizerDashboardPage() {
         )}
       </div>
 
-      {/* ✅ กำลังจะเริ่ม */}
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+      {/* กำลังจะเริ่ม */}
+      <div className={UI.section}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">กำลังจะเริ่ม</h2>
-          <div className="text-sm text-white/60">{upcoming.length} รายการ</div>
+          <h2 className="text-lg font-semibold text-slate-900">กำลังจะเริ่ม</h2>
+          <div className="text-sm text-slate-500">{upcoming.length} รายการ</div>
         </div>
 
         {loading ? (
-          <div className="text-white/60 mt-3">กำลังโหลด...</div>
+          <div className="text-slate-500 mt-3">กำลังโหลด...</div>
         ) : upcoming.length === 0 ? (
-          <div className="text-white/70 mt-3">ยังไม่มีกิจกรรมที่กำลังจะเริ่ม</div>
+          <div className="text-slate-600 mt-3">ยังไม่มีกิจกรรมที่กำลังจะเริ่ม</div>
         ) : (
           <div className="mt-3 grid gap-3">
             {upcoming.map((e) => (
-              <div key={e.id} className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                <div className="font-semibold">{e.title}</div>
-                <div className="text-white/60 text-sm mt-2">
+              <div key={e.id} className={UI.card}>
+                <div className="font-semibold text-slate-900">{e.title}</div>
+
+                <div className="text-slate-500 text-sm mt-2">
                   {new Date(e.startAt).toLocaleString()} - {new Date(e.endAt).toLocaleString()}
                 </div>
 
-                <div className="text-white/70 text-sm mt-2">
-                  เช็คชื่อแล้ว: <span className="font-semibold">{e.checkinCount}</span> คน
+                <div className="text-slate-600 text-sm mt-2">
+                  เช็คชื่อแล้ว: <span className="font-semibold text-slate-900">{e.checkinCount}</span> คน
                 </div>
 
                 <div className="mt-3 flex gap-2 flex-wrap">
-                  {/* ✅ ปุ่มรายชื่อ + จำนวนคน */}
-                  <button
-                    onClick={() => openDetail(e)}
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                  >
+                  <button onClick={() => openDetail(e)} className={UI.btn}>
                     รายชื่อ ({e.checkinCount})
                   </button>
 
                   <a
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
+                    className={UI.btn}
                     href={`/api/qr?data=${encodeURIComponent(checkinUrl(e.qrToken))}`}
                     target="_blank"
                     rel="noreferrer"
@@ -407,24 +395,15 @@ export default function OrganizerDashboardPage() {
                     เปิด QR
                   </a>
 
-                  <button
-                    onClick={() => exportExcel(e.id)}
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                  >
+                  <button onClick={() => exportExcel(e.id)} className={UI.btn}>
                     Export Excel
                   </button>
 
-                  <button
-                    onClick={() => openEdit(e)}
-                    className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                  >
+                  <button onClick={() => openEdit(e)} className={UI.btn}>
                     แก้ไข
                   </button>
 
-                  <button
-                    onClick={() => deleteEvent(e)}
-                    className="rounded-xl border border-red-500/30 bg-red-500/10 text-red-200 px-3 py-2 text-sm"
-                  >
+                  <button onClick={() => deleteEvent(e)} className={UI.btnDanger}>
                     ลบ
                   </button>
                 </div>
@@ -434,77 +413,59 @@ export default function OrganizerDashboardPage() {
         )}
       </div>
 
-      {/* ✅ Modal แก้ไข */}
+      {/* Modal แก้ไข */}
       {editOpen && editing ? (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-900 p-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-lg rounded-3xl border border-sky-100 bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">แก้ไขกิจกรรม</h3>
-              <button
-                onClick={() => setEditOpen(false)}
-                className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-              >
+              <h3 className="text-lg font-semibold text-slate-900">แก้ไขกิจกรรม</h3>
+              <button onClick={() => setEditOpen(false)} className={UI.btn}>
                 ปิด
               </button>
             </div>
 
-            <div className="mt-3 grid gap-3">
+            <div className="mt-4 grid gap-3">
               <div>
-                <label className="text-sm text-white/70">ชื่อกิจกรรม</label>
-                <input
-                  className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
-                  value={editTitle}
-                  onChange={(ev) => setEditTitle(ev.target.value)}
-                />
+                <label className="text-sm text-slate-600">ชื่อกิจกรรม</label>
+                <input className={UI.input} value={editTitle} onChange={(ev) => setEditTitle(ev.target.value)} />
               </div>
 
               <div>
-                <label className="text-sm text-white/70">รายละเอียด</label>
-                <textarea
-                  className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none min-h-[80px]"
-                  value={editDesc}
-                  onChange={(ev) => setEditDesc(ev.target.value)}
-                />
+                <label className="text-sm text-slate-600">รายละเอียด</label>
+                <textarea className={UI.textarea} value={editDesc} onChange={(ev) => setEditDesc(ev.target.value)} />
               </div>
 
               <div className="grid md:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-white/70">เวลาเริ่ม</label>
+                  <label className="text-sm text-slate-600">เวลาเริ่ม</label>
                   <input
                     type="datetime-local"
-                    className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
+                    className={UI.input}
                     value={editStartAt}
                     onChange={(ev) => setEditStartAt(ev.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-white/70">เวลาสิ้นสุด</label>
+                  <label className="text-sm text-slate-600">เวลาสิ้นสุด</label>
                   <input
                     type="datetime-local"
-                    className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
+                    className={UI.input}
                     value={editEndAt}
                     onChange={(ev) => setEditEndAt(ev.target.value)}
                   />
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-sm text-white/80">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={editActive} onChange={(ev) => setEditActive(ev.target.checked)} />
                 เปิดให้เช็คชื่อ (isActive)
               </label>
 
               <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => setEditOpen(false)}
-                  className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                >
+                <button onClick={() => setEditOpen(false)} className={UI.btn}>
                   ยกเลิก
                 </button>
-                <button
-                  onClick={saveEdit}
-                  disabled={saving}
-                  className="rounded-xl bg-white text-black font-semibold px-3 py-2 text-sm disabled:opacity-60"
-                >
+                <button onClick={saveEdit} disabled={saving} className={`${UI.btnPrimary} disabled:opacity-60`}>
                   {saving ? "กำลังบันทึก..." : "บันทึก"}
                 </button>
               </div>
@@ -513,62 +474,54 @@ export default function OrganizerDashboardPage() {
         </div>
       ) : null}
 
-      {/* ✅ Modal รายชื่อ + Map */}
+      {/* Modal รายชื่อ + Map */}
       {detailOpen && detailEvent ? (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-zinc-900 p-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-4xl rounded-3xl border border-sky-100 bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="text-lg font-semibold">{detailEvent.title}</div>
-                <div className="text-white/60 text-sm">
+                <div className="text-lg font-semibold text-slate-900">{detailEvent.title}</div>
+                <div className="text-slate-500 text-sm">
                   {new Date(detailEvent.startAt).toLocaleString()} - {new Date(detailEvent.endAt).toLocaleString()}
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <a
-                  href={googleMapsLink(detailEvent)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                >
+                <a href={googleMapsLink(detailEvent)} target="_blank" rel="noreferrer" className={UI.btn}>
                   เปิด Google Maps
                 </a>
-                <button
-                  onClick={() => setDetailOpen(false)}
-                  className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-                >
+                <button onClick={() => setDetailOpen(false)} className={UI.btn}>
                   ปิด
                 </button>
               </div>
             </div>
 
             {detailEvent.locationName ? (
-              <div className="mt-2 text-white/80 text-sm">สถานที่: {detailEvent.locationName}</div>
+              <div className="mt-2 text-slate-700 text-sm">สถานที่: {detailEvent.locationName}</div>
             ) : null}
-            {detailEvent.notes ? <div className="mt-1 text-white/70 text-sm">หมายเหตุ: {detailEvent.notes}</div> : null}
+            {detailEvent.notes ? <div className="mt-1 text-slate-600 text-sm">หมายเหตุ: {detailEvent.notes}</div> : null}
 
             {/* Map */}
-            <div className="mt-3 rounded-2xl overflow-hidden border border-white/10">
+            <div className="mt-3 rounded-3xl overflow-hidden border border-sky-100">
               <iframe title="map" src={openStreetMapEmbed(detailEvent)} className="w-full h-[320px]" />
             </div>
 
             {/* Participants */}
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3">
+            <div className="mt-4 rounded-3xl border border-sky-100 bg-sky-50 p-4">
               <div className="flex items-center justify-between">
-                <div className="font-semibold">รายชื่อผู้เช็คชื่อ</div>
-                <div className="text-white/60 text-sm">{participants.length} คน</div>
+                <div className="font-semibold text-slate-900">รายชื่อผู้เช็คชื่อ</div>
+                <div className="text-slate-500 text-sm">{participants.length} คน</div>
               </div>
 
               {loadingParticipants ? (
-                <div className="text-white/60 mt-3">กำลังโหลดรายชื่อ...</div>
+                <div className="text-slate-500 mt-3">กำลังโหลดรายชื่อ...</div>
               ) : participants.length === 0 ? (
-                <div className="text-white/70 mt-3">ยังไม่มีคนเช็คชื่อ</div>
+                <div className="text-slate-600 mt-3">ยังไม่มีคนเช็คชื่อ</div>
               ) : (
-                <div className="mt-3 max-h-[320px] overflow-auto rounded-xl border border-white/10">
+                <div className="mt-3 max-h-[320px] overflow-auto rounded-2xl border border-sky-100 bg-white">
                   <table className="w-full text-sm">
-                    <thead className="text-white/70">
-                      <tr className="border-b border-white/10">
+                    <thead className="text-slate-600 bg-sky-50 sticky top-0">
+                      <tr className="border-b border-sky-100">
                         <th className="text-left p-2">รหัส</th>
                         <th className="text-left p-2">ชื่อ-สกุล</th>
                         <th className="text-left p-2">ปี</th>
@@ -579,19 +532,19 @@ export default function OrganizerDashboardPage() {
                         <th className="text-left p-2">ระยะ(ม.)</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="text-slate-700">
                       {participants.map((p) => {
                         const t = p.checkedInAt || p.createdAt;
                         return (
-                          <tr key={p.id} className="border-b border-white/5">
-                            <td className="p-2 text-white/80">{p.participant?.studentId || "-"}</td>
-                            <td className="p-2">{p.participant?.fullName || "-"}</td>
-                            <td className="p-2 text-white/70">{p.participant?.year || "-"}</td>
-                            <td className="p-2 text-white/70">{p.participant?.classGroup || "-"}</td>
-                            <td className="p-2 text-white/70">{p.participant?.major || "-"}</td>
-                            <td className="p-2 text-white/70">{p.participant?.faculty || "-"}</td>
-                            <td className="p-2 text-white/70">{t ? new Date(t).toLocaleString() : "-"}</td>
-                            <td className="p-2 text-white/70">{p.distanceMeters ?? "-"}</td>
+                          <tr key={p.id} className="border-b border-sky-100">
+                            <td className="p-2">{p.participant?.studentId || "-"}</td>
+                            <td className="p-2 font-medium">{p.participant?.fullName || "-"}</td>
+                            <td className="p-2 text-slate-600">{p.participant?.year || "-"}</td>
+                            <td className="p-2 text-slate-600">{p.participant?.classGroup || "-"}</td>
+                            <td className="p-2 text-slate-600">{p.participant?.major || "-"}</td>
+                            <td className="p-2 text-slate-600">{p.participant?.faculty || "-"}</td>
+                            <td className="p-2 text-slate-600">{t ? new Date(t).toLocaleString() : "-"}</td>
+                            <td className="p-2 text-slate-600">{p.distanceMeters ?? "-"}</td>
                           </tr>
                         );
                       })}

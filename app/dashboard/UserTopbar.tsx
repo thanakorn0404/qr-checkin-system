@@ -32,11 +32,15 @@ export default function UserTopbar() {
           <div className="text-sm text-white/50">กำลังโหลดผู้ใช้...</div>
         )}
       </div>
+      {/* <button
+        onClick={() => router.push("/change-password")}
+        className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm">
+        เปลี่ยนรหัสผ่าน
+      </button> */}
 
       <button
         onClick={logout}
-        className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm"
-      >
+        className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm">
         ออกจากระบบ
       </button>
     </div>

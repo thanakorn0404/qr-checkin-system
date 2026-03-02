@@ -36,11 +36,37 @@ export default function CheckinPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
 
+  // ---------- helpers ----------
+  // ตัวเลขล้วน
+  const onlyDigits = (s: string) => s.replace(/\D+/g, "");
+
+  // ตัวเลข + จุด (เช่น 65059.042) และกันจุดซ้อน/จุดนำหน้า
+  const onlyDigitsAndDot = (s: string) => {
+    let x = s.replace(/[^0-9.]+/g, "");
+    x = x.replace(/\.{2,}/g, "."); // .. -> .
+    x = x.replace(/^\./g, ""); // ห้ามขึ้นต้นด้วย .
+    return x;
+  };
+
+  // ไทย/อังกฤษ/เว้นวรรค เท่านั้น
+  const onlyThaiEngSpace = (s: string) =>
+    s
+      .replace(/[^a-zA-Zก-๙\s]+/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trimStart();
+
+  // อีเมล: อนุญาต charset ที่ใช้จริงใน email และ lower-case
+  const normalizeEmail = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9@._+\-]+/g, "");
+
   function goLogin() {
     router.push(`/login?next=${encodeURIComponent(`/checkin/${token}`)}`);
   }
 
-  // ✅ โหลดข้อมูล event จาก token (และบังคับ login ตามที่คุณทำไว้)
+  // ✅ โหลดข้อมูล event + บังคับ login
   useEffect(() => {
     let alive = true;
 
@@ -81,29 +107,26 @@ export default function CheckinPage() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
- function niceError(r: Result): string {
-  if ((r as any).ok) return (r as any).message;
+  function niceError(r: any): string {
+    if (r?.ok) return r.message;
+    const err = r?.error as string | undefined;
+    const m = r?.message as string | undefined;
 
-  const err = (r as any).error as string | undefined;
-  const msg = (r as any).message as string | undefined;
-
-  if (err === "already_checked_in") return "คุณเช็คชื่อกิจกรรมนี้ไปแล้ว";
-  if (err === "out_of_time") return msg || "ยังไม่ถึงเวลาเช็คชื่อ หรือหมดเวลาแล้ว";
-  if (err === "outside_box") return msg || "อยู่นอกพื้นที่กิจกรรม";
-  if (err === "outside_radius") return msg || "อยู่นอกพื้นที่กิจกรรม";
-  if (err === "event_not_found") return "ไม่พบกิจกรรม";
-  if (err === "invalid_payload") return "กรอกข้อมูลไม่ครบ หรือพิกัดไม่ถูกต้อง";
-  if (err === "unauthorized") return "กรุณา login ก่อน";
-
-  return `เช็คชื่อไม่สำเร็จ: ${err || "unknown_error"}`;
-}
+    if (err === "already_checked_in") return "คุณเช็คชื่อกิจกรรมนี้ไปแล้ว";
+    if (err === "out_of_time") return m || "ยังไม่ถึงเวลาเช็คชื่อ หรือหมดเวลาแล้ว";
+    if (err === "outside_box") return m || "อยู่นอกพื้นที่กิจกรรม";
+    if (err === "outside_radius") return m || "อยู่นอกพื้นที่กิจกรรม";
+    if (err === "event_not_found") return "ไม่พบกิจกรรม";
+    if (err === "invalid_payload") return "กรอกข้อมูลไม่ถูกต้อง";
+    if (err === "unauthorized") return "กรุณา login ก่อน";
+    return `เช็คชื่อไม่สำเร็จ: ${err || "unknown_error"}`;
+  }
 
   // ✅ validate ก่อนกดเช็คชื่อ
   const canSubmit = useMemo(() => {
-    const ok =
+    return (
       token &&
       studentId.trim().length >= 5 &&
       fullName.trim().length >= 2 &&
@@ -111,26 +134,22 @@ export default function CheckinPage() {
       classGroup.trim().length >= 1 &&
       major.trim().length >= 1 &&
       faculty.trim().length >= 1 &&
-      email.trim().includes("@") &&
-      phone.trim().length >= 8;
-    return !!ok;
+      /\S+@\S+\.\S+/.test(email.trim()) &&
+      phone.trim().length >= 8
+    );
   }, [token, studentId, fullName, year, classGroup, major, faculty, email, phone]);
 
   async function doCheckin() {
-    if (checking) return;
-    if (!event) return;
-
+    if (checking || !event) return;
     setMsg("");
 
-    // ✅ กันกดถ้าข้อมูลไม่ครบ
     if (!canSubmit) {
-      setMsg("กรุณากรอกข้อมูลให้ครบก่อนกดเช็คชื่อ");
+      setMsg("กรุณากรอกข้อมูลให้ถูกต้องและครบก่อนกดเช็คชื่อ");
       return;
     }
 
     setChecking(true);
 
-    // session หลุด -> login
     const me = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" });
     const meData = await me.json().catch(() => null);
     if (!me.ok || !meData?.ok) {
@@ -187,7 +206,7 @@ export default function CheckinPage() {
           }
 
           if (!(data as any).ok) {
-            setMsg(niceError(data as any));
+            setMsg(niceError(data));
             setChecking(false);
             return;
           }
@@ -207,13 +226,8 @@ export default function CheckinPage() {
     );
   }
 
-  if (loading) {
-    return <div className="p-6 text-white bg-black min-h-screen">กำลังโหลด...</div>;
-  }
-
-  if (!event) {
-    return <div className="p-6 text-red-400 bg-black min-h-screen">{msg || "ไม่พบกิจกรรม"}</div>;
-  }
+  if (loading) return <div className="p-6 text-white bg-black min-h-screen">กำลังโหลด...</div>;
+  if (!event) return <div className="p-6 text-red-400 bg-black min-h-screen">{msg || "ไม่พบกิจกรรม"}</div>;
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
@@ -229,83 +243,103 @@ export default function CheckinPage() {
 
         {/* ✅ ฟอร์ม */}
         <div className="mt-5 grid gap-3">
+          {/* รหัสนักศึกษา: ตัวเลขล้วน */}
           <div>
             <label className="text-sm text-white/70">รหัสนักศึกษา</label>
             <input
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={13}
               className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
               value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
+              onChange={(e) => setStudentId(onlyDigits(e.target.value))}
               placeholder="6504305001318"
             />
           </div>
 
+          {/* ชื่อ-นามสกุล: ตัวอักษรเท่านั้น */}
           <div>
             <label className="text-sm text-white/70">ชื่อ-นามสกุล</label>
             <input
               className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => setFullName(onlyThaiEngSpace(e.target.value))}
               placeholder="เช่น ธนกร โตอำมาตย์"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            {/* ชั้นปี: ตัวเลขล้วน */}
             <div>
               <label className="text-sm text-white/70">ชั้นปี</label>
               <input
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={1}
                 className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
                 value={year}
-                onChange={(e) => setYear(e.target.value)}
+                onChange={(e) => setYear(onlyDigits(e.target.value))}
                 placeholder="1"
               />
             </div>
+
+            {/* กลุ่มเรียน: เลข + จุด */}
             <div>
               <label className="text-sm text-white/70">กลุ่มเรียน</label>
               <input
+                inputMode="decimal"
                 className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
                 value={classGroup}
-                onChange={(e) => setClassGroup(e.target.value)}
+                onChange={(e) => setClassGroup(onlyDigitsAndDot(e.target.value))}
                 placeholder="65059.042"
               />
             </div>
           </div>
 
+          {/* สาขา: ตัวอักษรเท่านั้น */}
           <div>
             <label className="text-sm text-white/70">สาขา</label>
             <input
               className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
               value={major}
-              onChange={(e) => setMajor(e.target.value)}
+              onChange={(e) => setMajor(onlyThaiEngSpace(e.target.value))}
               placeholder="เช่น วิทยาการคอมพิวเตอร์"
             />
           </div>
 
+          {/* คณะ: ตัวอักษรเท่านั้น */}
           <div>
             <label className="text-sm text-white/70">คณะ</label>
             <input
               className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
               value={faculty}
-              onChange={(e) => setFaculty(e.target.value)}
+              onChange={(e) => setFaculty(onlyThaiEngSpace(e.target.value))}
               placeholder="เช่น คณะวิทยาศาสตร์ฯ"
             />
           </div>
 
+          {/* อีเมล: format อีเมล */}
           <div>
             <label className="text-sm text-white/70">อีเมล</label>
             <input
+              inputMode="email"
               className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => setEmail(normalizeEmail(e.target.value))}
               placeholder="65059@student.sru.ac.th"
             />
           </div>
 
+          {/* เบอร์โทร: ตัวเลขล้วน */}
           <div>
             <label className="text-sm text-white/70">เบอร์โทร</label>
             <input
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={10}
               className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 outline-none"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(onlyDigits(e.target.value))}
               placeholder="0836461572"
             />
           </div>
@@ -331,11 +365,7 @@ export default function CheckinPage() {
           {checking ? "กำลังเช็คชื่อ..." : "เช็คชื่อเข้าร่วมกิจกรรม"}
         </button>
 
-        {!canSubmit ? (
-          <div className="mt-2 text-xs text-white/50 text-center">
-            * ต้องกรอกข้อมูลให้ครบทุกช่องก่อน
-          </div>
-        ) : null}
+        {!canSubmit ? <div className="mt-2 text-xs text-white/50 text-center">* ต้องกรอกข้อมูลให้ครบ/ถูกต้องก่อน</div> : null}
       </div>
     </div>
   );
