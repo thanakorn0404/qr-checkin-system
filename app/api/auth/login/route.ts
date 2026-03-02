@@ -4,10 +4,9 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { cookies } from "next/headers";
 import { connectDB } from "@/lib/db/mongodb";
 import { User } from "@/models/User";
-import { signAuthToken } from "@/lib/auth";
+import { signAuthToken, setAuthCookies } from "@/lib/auth";
 
 const BodySchema = z.object({
   username: z.string().min(2).max(60),
@@ -42,24 +41,17 @@ export async function POST(req: Request) {
     studentId: user.studentId || "",
   });
 
-  // ✅ set cookie
-  const cookieStore = await cookies();
-  cookieStore.set("auth_token", token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-});
+  // ✅ set cookie auth_token + last_active
+  await setAuthCookies(token);
 
   return NextResponse.json({
-  ok: true,
-  user: {
-    id: String(user._id),
-    username: user.username,
-    role: user.role,
-    name: user.name,
-    mustChangePassword: !!user.mustChangePassword,
-  },
-});
+    ok: true,
+    user: {
+      id: String(user._id),
+      username: user.username,
+      role: user.role,
+      name: user.name,
+      mustChangePassword: !!user.mustChangePassword,
+    },
+  });
 }
