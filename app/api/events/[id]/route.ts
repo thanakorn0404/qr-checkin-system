@@ -23,12 +23,41 @@ const PatchSchema = z.object({
   locationName: z.string().max(200).optional(),
   notes: z.string().max(2000).optional(),
   isActive: z.boolean().optional(),
-  startAt: z.string().optional(),
-  endAt: z.string().optional(),
+  startAt: z.string().optional(), // ISO หรือ datetime-local
+  endAt: z.string().optional(),   // ISO หรือ datetime-local
   geoBox: BoxSchema.optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };
+
+/* ------------------ helpers ------------------ */
+
+// ถ้ามี Z หรือ +07:00 -> ถือว่าเป็น ISO มี timezone
+function hasTimezone(s: string) {
+  return /[zZ]$|[+\-]\d{2}:\d{2}$/.test(s);
+}
+
+// รองรับ:
+// - ISO (มี timezone): new Date(iso) ได้เลย
+// - datetime-local (ไม่มี timezone): ถือว่าเป็นเวลาไทย +07:00
+function parseClientDateTime(input: string) {
+  const raw = String(input || "").trim();
+  if (!raw) throw new Error("invalid_time");
+
+  // ISO มี timezone
+  if (hasTimezone(raw)) {
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) throw new Error("invalid_time");
+    return d;
+  }
+
+  // datetime-local: "2026-03-03T19:19"
+  // ให้ถือว่าเป็นเวลาไทย (+07:00)
+  // เติมวินาทีและ timezone ให้ครบ
+  const d = new Date(raw + ":00.000+07:00");
+  if (Number.isNaN(d.getTime())) throw new Error("invalid_time");
+  return d;
+}
 
 /* ================== PATCH ================== */
 
@@ -56,6 +85,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
     await connectDB();
 
+    // ✅ ดึงของเดิมมาก่อน เพื่อ validate เวลาแบบ "แก้บางช่อง"
+    const existed = await Event.findById(id).select("startAt endAt").lean();
+    if (!existed) {
+      return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
+    }
+
     const d = parsed.data;
     const patch: any = {};
 
@@ -65,27 +100,37 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (d.notes !== undefined) patch.notes = d.notes.trim();
     if (d.isActive !== undefined) patch.isActive = d.isActive;
 
-    if (d.startAt) {
-      const s = new Date(d.startAt);
-      if (Number.isNaN(s.getTime())) {
+    // ✅ parse time แบบกัน timezone เพี้ยน
+    let nextStart: Date | null = null;
+    let nextEnd: Date | null = null;
+
+    if (d.startAt !== undefined) {
+      try {
+        nextStart = parseClientDateTime(d.startAt);
+        patch.startAt = nextStart;
+      } catch {
         return NextResponse.json({ ok: false, error: "invalid_time" }, { status: 400 });
       }
-      patch.startAt = s;
     }
 
-    if (d.endAt) {
-      const e = new Date(d.endAt);
-      if (Number.isNaN(e.getTime())) {
+    if (d.endAt !== undefined) {
+      try {
+        nextEnd = parseClientDateTime(d.endAt);
+        patch.endAt = nextEnd;
+      } catch {
         return NextResponse.json({ ok: false, error: "invalid_time" }, { status: 400 });
       }
-      patch.endAt = e;
     }
 
-    if (patch.startAt && patch.endAt && patch.startAt >= patch.endAt) {
-      return NextResponse.json({ ok: false, error: "invalid_time" }, { status: 400 });
+    // ✅ Validate ช่วงเวลาโดยใช้ค่าที่ "จะเป็นจริงหลัง update"
+    const finalStart = nextStart ?? new Date((existed as any).startAt);
+    const finalEnd = nextEnd ?? new Date((existed as any).endAt);
+
+    if (finalStart >= finalEnd) {
+      return NextResponse.json({ ok: false, error: "invalid_time_range" }, { status: 400 });
     }
 
-    if (d.geoBox) patch.geoBox = d.geoBox;
+    if (d.geoBox !== undefined) patch.geoBox = d.geoBox;
 
     /* --- update --- */
     const updated = await Event.findByIdAndUpdate(id, { $set: patch }, { new: true }).lean();
@@ -94,7 +139,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, event: { id: String((updated as any)._id) } });
+    return NextResponse.json({
+      ok: true,
+      event: { id: String((updated as any)._id) },
+    });
   } catch (e: any) {
     if (String(e?.message) === "unauthorized") {
       return NextResponse.json({ ok: false }, { status: 401 });

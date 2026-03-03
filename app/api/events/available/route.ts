@@ -1,3 +1,4 @@
+//app/api/events/available/route.ts
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import { Event } from "@/models/Event";

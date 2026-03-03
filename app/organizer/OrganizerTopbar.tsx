@@ -42,7 +42,7 @@ export default function OrganizerTopbar() {
             {pageTitle(pathname)}
           </div>
           <div className="text-xs text-slate-500 truncate">
-            Organizer Admin Template • โทนขาว/น้ำเงิน
+            Organizer Admin Template
           </div>
         </div>
 
@@ -51,14 +51,14 @@ export default function OrganizerTopbar() {
         {/* Right actions */}
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {/* Quick create */}
-          <button
+          {/* <button
             onClick={() => router.push("/organizer/create-event")}
             className="h-10 px-3 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-500 text-white
                        shadow-md shadow-sky-200/70 hover:shadow-lg transition flex items-center gap-2"
           >
             <Plus size={16} />
             สร้างกิจกรรม
-          </button>
+          </button> */}
 
           {/* Admin only */}
           {user?.role === "admin" ? (

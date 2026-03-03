@@ -4,6 +4,9 @@ const CheckinSchema = new Schema(
   {
     eventId: { type: Schema.Types.ObjectId, ref: "Event", required: true, index: true },
 
+    // ✅ เพิ่ม: คนที่ login แล้ว (ผูกกับ User)
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+
     participant: {
       uniqueKey: { type: String, required: true, unique: true, index: true },
 
@@ -11,10 +14,8 @@ const CheckinSchema = new Schema(
       fullName: { type: String, required: true },
       year: { type: String, required: true },
       classGroup: { type: String, required: true },
-
       major: { type: String, required: true },
       faculty: { type: String, required: true },
-
       email: { type: String, required: true },
       phone: { type: String, required: true },
     },
@@ -29,10 +30,7 @@ const CheckinSchema = new Schema(
   { timestamps: true }
 );
 
-// แนะนำกันซ้ำชัดสุด: eventId + studentId
-CheckinSchema.index(
-  { eventId: 1, "participant.studentId": 1 },
-  { unique: true }
-);
+// ✅ กันซ้ำแบบชัดสุด: 1 คน / 1 กิจกรรม
+CheckinSchema.index({ eventId: 1, userId: 1 }, { unique: true });
 
 export const Checkin = models.Checkin || model("Checkin", CheckinSchema);

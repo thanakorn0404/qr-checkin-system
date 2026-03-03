@@ -43,7 +43,7 @@ export default function LoginPage() {
           <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-500 shadow-md shadow-sky-200/60" />
           <div className="flex-1">
             <h1 className="text-2xl font-semibold tracking-tight">เข้าสู่ระบบ</h1>
-            <p className="text-slate-500 mt-1">สำหรับผู้จัดกิจกรรม / ผู้ดูแล</p>
+            <p className="text-slate-500 mt-1">เช็คชื่อเข้าร่วมกิจกรรม</p>
           </div>
         </div>
 
