@@ -1,28 +1,39 @@
-import mongoose, { Schema, models, model } from "mongoose";
+import mongoose from "mongoose";
 
-const CheckinSchema = new Schema(
+const ParticipantSchema = new mongoose.Schema(
   {
-    eventId: { type: Schema.Types.ObjectId, ref: "Event", required: true, index: true },
+    uniqueKey: { type: String, required: true, index: true },
 
-    // ✅ เพิ่ม: คนที่ login แล้ว (ผูกกับ User)
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    studentId: { type: String, required: true },
+    fullName: { type: String, required: true },
+    year: { type: String, required: true },
+    classGroup: { type: String, required: true },
 
-    participant: {
-      uniqueKey: { type: String, required: true, unique: true, index: true },
+    major: { type: String, required: true },
+    faculty: { type: String, required: true },
 
-      studentId: { type: String, required: true },
-      fullName: { type: String, required: true },
-      year: { type: String, required: true },
-      classGroup: { type: String, required: true },
-      major: { type: String, required: true },
-      faculty: { type: String, required: true },
-      email: { type: String, required: true },
-      phone: { type: String, required: true },
+    email: { type: String, required: true },
+    phone: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const CheckinSchema = new mongoose.Schema(
+  {
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Event",
+      required: true,
+      index: true,
     },
 
-    studentLat: { type: Number, required: true },
-    studentLng: { type: Number, required: true },
-    distanceMeters: { type: Number, default: 0 },
+    // ❌ ลบ userId ออกให้หมด
+
+    participant: { type: ParticipantSchema, required: true },
+
+    studentLat: Number,
+    studentLng: Number,
+    distanceMeters: Number,
 
     status: { type: String, default: "passed" },
     reason: { type: String, default: "" },
@@ -30,7 +41,12 @@ const CheckinSchema = new Schema(
   { timestamps: true }
 );
 
-// ✅ กันซ้ำแบบชัดสุด: 1 คน / 1 กิจกรรม
-CheckinSchema.index({ eventId: 1, userId: 1 }, { unique: true });
+// กัน duplicate
+CheckinSchema.index(
+  { eventId: 1, "participant.uniqueKey": 1 },
+  { unique: true }
+);
 
-export const Checkin = models.Checkin || model("Checkin", CheckinSchema);
+export const Checkin =
+  mongoose.models.Checkin ||
+  mongoose.model("Checkin", CheckinSchema);
