@@ -1,3 +1,4 @@
+// app/api/events/create/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
@@ -6,16 +7,21 @@ import { Event } from "@/models/Event";
 import { requireAuth } from "@/lib/auth";
 
 const BoxSchema = z.object({
-  north: z.number(),
-  south: z.number(),
-  east: z.number(),
-  west: z.number(),
+  north: z.coerce.number(),
+  south: z.coerce.number(),
+  east: z.coerce.number(),
+  west: z.coerce.number(),
 });
 
-// รับ datetime-local เช่น 2026-03-02T23:00 (หรือมีวินาที)
-const DateTimeLocalSchema = z
+// datetime-local: 2026-03-02T23:00 หรือ 2026-03-02T23:00:00
+const DateTimeLocalRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
+const DateTimeAnySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/, "invalid datetime-local");
+  .refine(
+    (v) => DateTimeLocalRe.test(v) || !Number.isNaN(new Date(v).getTime()),
+    "invalid datetime"
+  );
 
 const BodySchema = z.object({
   title: z.string().min(2).max(200),
@@ -27,19 +33,24 @@ const BodySchema = z.object({
 
   geoBox: BoxSchema,
 
-  startAt: DateTimeLocalSchema,
-  endAt: DateTimeLocalSchema,
+  startAt: DateTimeAnySchema,
+  endAt: DateTimeAnySchema,
 });
 
-// แปลง datetime-local ให้เป็นเวลาไทย (+07:00) ชัดๆ กัน Vercel(UTC) ทำเวลาเลื่อน
-function parseBangkokDatetimeLocal(v: string) {
-  const hasSeconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(v);
-  const withSeconds = hasSeconds ? v : `${v}:00`;
-  return new Date(`${withSeconds}+07:00`);
+// แปลงเวลา:
+// - ถ้า datetime-local => บังคับ +07:00 (Bangkok)
+// - ถ้า ISO (มี Z หรือมี timezone) => ใช้ Date ปกติ
+function parseEventTime(v: string) {
+  if (DateTimeLocalRe.test(v)) {
+    const withSeconds = v.length === 16 ? `${v}:00` : v; // เติม :00 ถ้าไม่มีวินาที
+    return new Date(`${withSeconds}+07:00`);
+  }
+  return new Date(v);
 }
 
 export async function POST(req: Request) {
-  let auth;
+  // ต้อง login และเป็น admin/organizer เท่านั้น
+  let auth: any;
   try {
     auth = await requireAuth();
   } catch {
@@ -52,13 +63,17 @@ export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 });
+    // ✅ ช่วย debug: ดูว่า field ไหนผิด (อยากปิดทีหลังค่อยลบ detail)
+    return NextResponse.json(
+      { ok: false, error: "invalid_payload", detail: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   const { title, description, locationName, notes, isActive, geoBox, startAt, endAt } = parsed.data;
 
-  const s = parseBangkokDatetimeLocal(startAt);
-  const e = parseBangkokDatetimeLocal(endAt);
+  const s = parseEventTime(startAt);
+  const e = parseEventTime(endAt);
 
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || s >= e) {
     return NextResponse.json({ ok: false, error: "invalid_time" }, { status: 400 });
