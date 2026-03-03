@@ -1,4 +1,4 @@
-//app/api/events/available/route.ts
+// app/api/events/available/route.ts
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import { Event } from "@/models/Event";
@@ -7,15 +7,18 @@ import { requireAuth } from "@/lib/auth";
 
 export async function GET() {
   try {
-    // ✅ ต้อง await (กัน auth หลุด/เป็น Promise)
     const auth = await requireAuth();
-
     await connectDB();
+
+    if (auth.role !== "student") {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    }
+    if (!auth.studentId) {
+      return NextResponse.json({ ok: false, error: "missing_studentId" }, { status: 400 });
+    }
 
     const now = new Date();
 
-    // ✅ เลือกกิจกรรมที่ยังไม่หมดเวลา + active
-    // ✅ select field ที่จำเป็น + เพิ่ม locationName/notes/geoBox
     const events = await Event.find({
       isActive: true,
       endAt: { $gte: now },
@@ -26,9 +29,9 @@ export async function GET() {
 
     const eventIds = events.map((e: any) => e._id);
 
-    // ✅ หา checkin ของ user ใน events เหล่านี้
+    // ✅ ใช้ participant.studentId
     const myCheckins = await Checkin.find({
-      userId: auth.userId,
+      "participant.studentId": String(auth.studentId),
       eventId: { $in: eventIds },
     })
       .select("eventId createdAt")
@@ -54,6 +57,6 @@ export async function GET() {
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg === "unauthorized") return NextResponse.json({ ok: false }, { status: 401 });
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "server_error", message: msg }, { status: 500 });
   }
 }
