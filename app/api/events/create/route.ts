@@ -12,23 +12,33 @@ const BoxSchema = z.object({
   west: z.number(),
 });
 
+// รับ datetime-local เช่น 2026-03-02T23:00 (หรือมีวินาที)
+const DateTimeLocalSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/, "invalid datetime-local");
+
 const BodySchema = z.object({
   title: z.string().min(2).max(200),
   description: z.string().max(2000).optional().default(""),
 
-  // ✅ เพิ่ม
   locationName: z.string().max(200).optional().default(""),
   notes: z.string().max(2000).optional().default(""),
   isActive: z.boolean().optional().default(true),
 
-  geoBox: BoxSchema, // ✅ ใช้ geoBox เป็นหลัก
+  geoBox: BoxSchema,
 
-  startAt: z.string(),
-  endAt: z.string(),
+  startAt: DateTimeLocalSchema,
+  endAt: DateTimeLocalSchema,
 });
 
+// แปลง datetime-local ให้เป็นเวลาไทย (+07:00) ชัดๆ กัน Vercel(UTC) ทำเวลาเลื่อน
+function parseBangkokDatetimeLocal(v: string) {
+  const hasSeconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(v);
+  const withSeconds = hasSeconds ? v : `${v}:00`;
+  return new Date(`${withSeconds}+07:00`);
+}
+
 export async function POST(req: Request) {
-  // ✅ ต้อง login และเป็น admin/organizer เท่านั้น
   let auth;
   try {
     auth = await requireAuth();
@@ -47,8 +57,9 @@ export async function POST(req: Request) {
 
   const { title, description, locationName, notes, isActive, geoBox, startAt, endAt } = parsed.data;
 
-  const s = new Date(startAt);
-  const e = new Date(endAt);
+  const s = parseBangkokDatetimeLocal(startAt);
+  const e = parseBangkokDatetimeLocal(endAt);
+
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || s >= e) {
     return NextResponse.json({ ok: false, error: "invalid_time" }, { status: 400 });
   }
@@ -67,7 +78,7 @@ export async function POST(req: Request) {
     startAt: s,
     endAt: e,
     qrToken,
-    createdBy: auth.userId, // ✅ เซ็ตอัตโนมัติจากคนล็อกอิน
+    createdBy: auth.userId,
   });
 
   return NextResponse.json({
