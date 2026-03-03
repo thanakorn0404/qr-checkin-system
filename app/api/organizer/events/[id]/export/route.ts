@@ -1,3 +1,4 @@
+// app/api/organizer/events/[id]/export/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { connectDB } from "@/lib/db/mongodb";
@@ -5,23 +6,24 @@ import { requireAuth } from "@/lib/auth";
 import { Event } from "@/models/Event";
 import { Checkin } from "@/models/Checkin";
 
-export const runtime = "nodejs"; // ✅ กัน ExcelJS พังบน Edge
-export const dynamic = "force-dynamic"; // ✅ กัน cache ตอน export
-
-type Ctx = { params: Promise<{ id: string }> };
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function safeFileName(name: string) {
-  return name.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "event";
+  return String(name || "event")
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .slice(0, 60);
 }
 
-export async function GET(_req: NextRequest, { params }: Ctx) {
+export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
   try {
+    // ✅ ต้องล็อกอิน + ต้องเป็น admin/organizer
     const auth = await requireAuth();
     if (auth.role !== "admin" && auth.role !== "organizer") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const id = ctx.params.id;
 
     await connectDB();
 
@@ -33,7 +35,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     // (optional) organizer เห็นเฉพาะงานตัวเอง
     if (auth.role === "organizer") {
       const createdBy = (event as any).createdBy ? String((event as any).createdBy) : null;
-      if (createdBy && createdBy !== auth.userId) {
+      if (createdBy && createdBy !== String(auth.userId)) {
         return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
       }
     }
@@ -78,37 +80,35 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
           faculty: p.faculty || "",
           email: p.email || "",
           phone: p.phone || "",
-          checkedInAt: c.createdAt ? new Date(c.createdAt).toLocaleString() : "",
+          checkedInAt: c.createdAt ? new Date(c.createdAt).toLocaleString("th-TH") : "",
           distanceMeters: typeof c.distanceMeters === "number" ? c.distanceMeters : "",
           status: c.status || "",
         });
       });
     }
 
-    const fileName = `participants_${safeFileName(String((event as any).title || "event"))}.xlsx`;
+    const fileName = `participants_${safeFileName((event as any).title)}.xlsx`;
 
-    // ExcelJS => ArrayBuffer, แปลงเป็น Buffer ให้ Next ส่ง binary ชัวร์
     const arrayBuffer = await wb.xlsx.writeBuffer();
     const buffer = Buffer.from(arrayBuffer as ArrayBuffer);
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${fileName}"`,
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
+        "Cache-Control": "no-store",
       },
     });
   } catch (e: any) {
     const msg = String(e?.message || "");
+
+    // ✅ ทำให้เห็นชัด ไม่ใช่ {ok:false} เฉยๆ
     if (msg === "unauthorized") {
-      return NextResponse.json({ ok: false }, { status: 401 });
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
     console.error("[EXPORT_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "server_error", message: msg }, { status: 500 });
   }
 }
