@@ -24,11 +24,11 @@ const PatchSchema = z.object({
   notes: z.string().max(2000).optional(),
   isActive: z.boolean().optional(),
   startAt: z.string().optional(), // ISO หรือ datetime-local
-  endAt: z.string().optional(),   // ISO หรือ datetime-local
+  endAt: z.string().optional(), // ISO หรือ datetime-local
   geoBox: BoxSchema.optional(),
 });
 
-type Ctx = { params: Promise<{ id: string }> };
+type Ctx = { params: { id: string } };
 
 /* ------------------ helpers ------------------ */
 
@@ -53,7 +53,6 @@ function parseClientDateTime(input: string) {
 
   // datetime-local: "2026-03-03T19:19"
   // ให้ถือว่าเป็นเวลาไทย (+07:00)
-  // เติมวินาทีและ timezone ให้ครบ
   const d = new Date(raw + ":00.000+07:00");
   if (Number.isNaN(d.getTime())) throw new Error("invalid_time");
   return d;
@@ -63,7 +62,7 @@ function parseClientDateTime(input: string) {
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   try {
-    const { id } = await params;
+    const { id } = params;
 
     /* --- auth --- */
     const auth = await requireAuth();
@@ -153,9 +152,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
 /* ================== DELETE ================== */
 
-export async function DELETE(req: NextRequest, { params }: Ctx) {
+export async function DELETE(_req: NextRequest, { params }: Ctx) {
   try {
-    const { id } = await params;
+    const { id } = params;
 
     const auth = await requireAuth();
     if (auth.role !== "admin" && auth.role !== "organizer") {

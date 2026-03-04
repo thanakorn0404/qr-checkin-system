@@ -1,10 +1,11 @@
+// app/api/organizer/events/[id]/participants/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { Event } from "@/models/Event";
 import { Checkin } from "@/models/Checkin";
 
-type Ctx = { params: Promise<{ id: string }> };
+type Ctx = { params: { id: string } };
 
 export async function GET(_req: NextRequest, { params }: Ctx) {
   try {
@@ -13,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id } = params;
 
     await connectDB();
 
@@ -22,9 +23,10 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
     }
 
+    // organizer เห็นเฉพาะงานตัวเอง
     if (auth.role === "organizer") {
       const createdBy = (event as any).createdBy ? String((event as any).createdBy) : null;
-      if (createdBy && createdBy !== auth.userId) {
+      if (createdBy && createdBy !== String(auth.userId)) {
         return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
       }
     }
