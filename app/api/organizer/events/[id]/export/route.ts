@@ -1,4 +1,3 @@
-// app/api/organizer/events/[id]/export/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { connectDB } from "@/lib/db/mongodb";
@@ -10,39 +9,34 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function safeFileName(name: string) {
-  return String(name || "event")
-    .replace(/[\\/:*?"<>|]/g, "_")
-    .slice(0, 60);
+  return String(name || "event").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60);
 }
 
-export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
   try {
-    // ✅ ต้องล็อกอิน + ต้องเป็น admin/organizer
     const auth = await requireAuth();
     if (auth.role !== "admin" && auth.role !== "organizer") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const id = ctx.params.id;
+    const { id } = ctx.params;
 
     await connectDB();
 
-    const event = await Event.findById(id).lean();
+    const event: any = await Event.findById(id).lean();
     if (!event) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
     }
 
-    // (optional) organizer เห็นเฉพาะงานตัวเอง
+    // organizer เห็นเฉพาะงานตัวเอง (ถ้าคุณใช้ createdBy)
     if (auth.role === "organizer") {
-      const createdBy = (event as any).createdBy ? String((event as any).createdBy) : null;
-      if (createdBy && createdBy !== String(auth.userId)) {
+      const createdBy = event.createdBy ? String(event.createdBy) : null;
+      if (createdBy && createdBy !== auth.userId) {
         return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
       }
     }
 
-    const rows = await Checkin.find({ eventId: (event as any)._id })
-      .sort({ createdAt: 1 })
-      .lean();
+    const rows: any[] = await Checkin.find({ eventId: event._id }).sort({ createdAt: 1 }).lean();
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("participants");
@@ -68,7 +62,7 @@ export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
     if (rows.length === 0) {
       ws.addRow({ fullName: "ไม่มีผู้เข้าร่วมกิจกรรม" });
     } else {
-      rows.forEach((c: any, idx: number) => {
+      rows.forEach((c, idx) => {
         const p = c.participant || {};
         ws.addRow({
           no: idx + 1,
@@ -87,7 +81,7 @@ export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
       });
     }
 
-    const fileName = `participants_${safeFileName((event as any).title)}.xlsx`;
+    const fileName = `participants_${safeFileName(event.title)}.xlsx`;
 
     const arrayBuffer = await wb.xlsx.writeBuffer();
     const buffer = Buffer.from(arrayBuffer as ArrayBuffer);
@@ -102,13 +96,11 @@ export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
     });
   } catch (e: any) {
     const msg = String(e?.message || "");
-
-    // ✅ ทำให้เห็นชัด ไม่ใช่ {ok:false} เฉยๆ
     if (msg === "unauthorized") {
+      // ✅ อย่าส่งแค่ {ok:false} เฉยๆ จะงง
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
-
     console.error("[EXPORT_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "server_error", message: msg }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }

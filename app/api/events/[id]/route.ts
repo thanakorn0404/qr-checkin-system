@@ -1,4 +1,3 @@
-// app/api/events/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { connectDB } from "@/lib/db/mongodb";
@@ -28,31 +27,26 @@ const PatchSchema = z.object({
   geoBox: BoxSchema.optional(),
 });
 
-type Ctx = { params: { id: string } };
+// ✅ สำคัญ: params เป็น Promise (ตาม type ของ Next ที่คุณใช้)
+type Ctx = { params: Promise<{ id: string }> };
 
 /* ------------------ helpers ------------------ */
 
-// ถ้ามี Z หรือ +07:00 -> ถือว่าเป็น ISO มี timezone
 function hasTimezone(s: string) {
   return /[zZ]$|[+\-]\d{2}:\d{2}$/.test(s);
 }
 
-// รองรับ:
-// - ISO (มี timezone): new Date(iso) ได้เลย
-// - datetime-local (ไม่มี timezone): ถือว่าเป็นเวลาไทย +07:00
 function parseClientDateTime(input: string) {
   const raw = String(input || "").trim();
   if (!raw) throw new Error("invalid_time");
 
-  // ISO มี timezone
   if (hasTimezone(raw)) {
     const d = new Date(raw);
     if (Number.isNaN(d.getTime())) throw new Error("invalid_time");
     return d;
   }
 
-  // datetime-local: "2026-03-03T19:19"
-  // ให้ถือว่าเป็นเวลาไทย (+07:00)
+  // datetime-local => ถือเป็นเวลาไทย +07:00
   const d = new Date(raw + ":00.000+07:00");
   if (Number.isNaN(d.getTime())) throw new Error("invalid_time");
   return d;
@@ -60,22 +54,19 @@ function parseClientDateTime(input: string) {
 
 /* ================== PATCH ================== */
 
-export async function PATCH(req: NextRequest, { params }: Ctx) {
+export async function PATCH(req: NextRequest, ctx: Ctx) {
   try {
-    const { id } = params;
+    const { id } = await ctx.params;
 
-    /* --- auth --- */
     const auth = await requireAuth();
     if (auth.role !== "admin" && auth.role !== "organizer") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    /* --- validate id --- */
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
     }
 
-    /* --- body --- */
     const json = await req.json().catch(() => null);
     const parsed = PatchSchema.safeParse(json);
     if (!parsed.success) {
@@ -84,7 +75,6 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
     await connectDB();
 
-    // ✅ ดึงของเดิมมาก่อน เพื่อ validate เวลาแบบ "แก้บางช่อง"
     const existed = await Event.findById(id).select("startAt endAt").lean();
     if (!existed) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
@@ -99,7 +89,6 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (d.notes !== undefined) patch.notes = d.notes.trim();
     if (d.isActive !== undefined) patch.isActive = d.isActive;
 
-    // ✅ parse time แบบกัน timezone เพี้ยน
     let nextStart: Date | null = null;
     let nextEnd: Date | null = null;
 
@@ -121,7 +110,6 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       }
     }
 
-    // ✅ Validate ช่วงเวลาโดยใช้ค่าที่ "จะเป็นจริงหลัง update"
     const finalStart = nextStart ?? new Date((existed as any).startAt);
     const finalEnd = nextEnd ?? new Date((existed as any).endAt);
 
@@ -131,20 +119,15 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
     if (d.geoBox !== undefined) patch.geoBox = d.geoBox;
 
-    /* --- update --- */
     const updated = await Event.findByIdAndUpdate(id, { $set: patch }, { new: true }).lean();
-
     if (!updated) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
     }
 
-    return NextResponse.json({
-      ok: true,
-      event: { id: String((updated as any)._id) },
-    });
+    return NextResponse.json({ ok: true, event: { id: String((updated as any)._id) } });
   } catch (e: any) {
     if (String(e?.message) === "unauthorized") {
-      return NextResponse.json({ ok: false }, { status: 401 });
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
@@ -152,9 +135,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
 /* ================== DELETE ================== */
 
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
   try {
-    const { id } = params;
+    const { id } = await ctx.params;
 
     const auth = await requireAuth();
     if (auth.role !== "admin" && auth.role !== "organizer") {
@@ -177,7 +160,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     if (String(e?.message) === "unauthorized") {
-      return NextResponse.json({ ok: false }, { status: 401 });
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
