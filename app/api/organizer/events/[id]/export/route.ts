@@ -8,11 +8,15 @@ import { Checkin } from "@/models/Checkin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type Ctx = { params: Promise<{ id: string }> };
+
 function safeFileName(name: string) {
-  return name.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60);
+  return String(name || "event")
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .slice(0, 60) || "event";
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: Ctx) {
   try {
     const auth = await requireAuth();
 
@@ -20,14 +24,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const { id } = params;
+    const { id } = await ctx.params;
 
     await connectDB();
 
     const event: any = await Event.findById(id).lean();
-
     if (!event) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
+    }
+
+    if (auth.role === "organizer") {
+      const createdBy = event.createdBy ? String(event.createdBy) : null;
+      if (createdBy && createdBy !== String(auth.userId)) {
+        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+      }
     }
 
     const rows: any[] = await Checkin.find({ eventId: event._id })
@@ -53,31 +63,34 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     ];
 
     ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: "frozen", ySplit: 1 }];
 
-    rows.forEach((c, idx) => {
-      const p = c.participant || {};
-
-      ws.addRow({
-        no: idx + 1,
-        studentId: p.studentId || "",
-        fullName: p.fullName || "",
-        year: p.year || "",
-        classGroup: p.classGroup || "",
-        major: p.major || "",
-        faculty: p.faculty || "",
-        email: p.email || "",
-        phone: p.phone || "",
-        checkedInAt: c.createdAt
-          ? new Date(c.createdAt).toLocaleString("th-TH")
-          : "",
-        distanceMeters: c.distanceMeters ?? "",
-        status: c.status || "",
+    if (rows.length === 0) {
+      ws.addRow({ fullName: "ไม่มีผู้เข้าร่วมกิจกรรม" });
+    } else {
+      rows.forEach((c, idx) => {
+        const p = c.participant || {};
+        ws.addRow({
+          no: idx + 1,
+          studentId: p.studentId || "",
+          fullName: p.fullName || "",
+          year: p.year || "",
+          classGroup: p.classGroup || "",
+          major: p.major || "",
+          faculty: p.faculty || "",
+          email: p.email || "",
+          phone: p.phone || "",
+          checkedInAt: c.createdAt ? new Date(c.createdAt).toLocaleString("th-TH") : "",
+          distanceMeters: typeof c.distanceMeters === "number" ? c.distanceMeters : "",
+          status: c.status || "",
+        });
       });
-    });
+    }
 
     const fileName = `participants_${safeFileName(event.title)}.xlsx`;
 
-    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    const arrayBuffer = await wb.xlsx.writeBuffer();
+    const buffer = Buffer.from(arrayBuffer as ArrayBuffer);
 
     return new NextResponse(buffer, {
       status: 200,
@@ -85,17 +98,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Cache-Control": "no-store",
       },
     });
   } catch (e: any) {
-    if (String(e?.message) === "unauthorized") {
+    const msg = String(e?.message || "");
+
+    if (msg === "unauthorized") {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
-    console.error("EXPORT_ERROR:", e);
-
+    console.error("[EXPORT_ERROR]", e);
     return NextResponse.json(
-      { ok: false, error: "server_error" },
+      { ok: false, error: "server_error", message: msg },
       { status: 500 }
     );
   }
