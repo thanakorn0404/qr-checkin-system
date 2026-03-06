@@ -4,9 +4,10 @@ import { requireAuth } from "@/lib/auth";
 import { Event } from "@/models/Event";
 import { Checkin } from "@/models/Checkin";
 
-type Ctx = { params: Promise<{ id: string }> };
-
-export async function GET(_req: NextRequest, ctx: Ctx) {
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     const auth = await requireAuth();
 
@@ -14,7 +15,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const { id } = await ctx.params;
+    const { id } = await context.params;
 
     await connectDB();
 
@@ -23,7 +24,6 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
     }
 
-    // organizer เห็นเฉพาะงานตัวเอง
     if (auth.role === "organizer") {
       const createdBy = (event as any).createdBy ? String((event as any).createdBy) : null;
       if (createdBy && createdBy !== String(auth.userId)) {
@@ -67,6 +67,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     });
   } catch (e: any) {
     const msg = String(e?.message || "");
+
     if (msg === "unauthorized") {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
