@@ -9,34 +9,30 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function safeFileName(name: string) {
-  return String(name || "event").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60);
+  return name.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60);
 }
 
-export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const auth = await requireAuth();
+
     if (auth.role !== "admin" && auth.role !== "organizer") {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const { id } = ctx.params;
+    const { id } = params;
 
     await connectDB();
 
     const event: any = await Event.findById(id).lean();
+
     if (!event) {
       return NextResponse.json({ ok: false, error: "event_not_found" }, { status: 404 });
     }
 
-    // organizer เห็นเฉพาะงานตัวเอง (ถ้าคุณใช้ createdBy)
-    if (auth.role === "organizer") {
-      const createdBy = event.createdBy ? String(event.createdBy) : null;
-      if (createdBy && createdBy !== auth.userId) {
-        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-      }
-    }
-
-    const rows: any[] = await Checkin.find({ eventId: event._id }).sort({ createdAt: 1 }).lean();
+    const rows: any[] = await Checkin.find({ eventId: event._id })
+      .sort({ createdAt: 1 })
+      .lean();
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("participants");
@@ -57,50 +53,50 @@ export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
     ];
 
     ws.getRow(1).font = { bold: true };
-    ws.views = [{ state: "frozen", ySplit: 1 }];
 
-    if (rows.length === 0) {
-      ws.addRow({ fullName: "ไม่มีผู้เข้าร่วมกิจกรรม" });
-    } else {
-      rows.forEach((c, idx) => {
-        const p = c.participant || {};
-        ws.addRow({
-          no: idx + 1,
-          studentId: p.studentId || "",
-          fullName: p.fullName || "",
-          year: p.year || "",
-          classGroup: p.classGroup || "",
-          major: p.major || "",
-          faculty: p.faculty || "",
-          email: p.email || "",
-          phone: p.phone || "",
-          checkedInAt: c.createdAt ? new Date(c.createdAt).toLocaleString("th-TH") : "",
-          distanceMeters: typeof c.distanceMeters === "number" ? c.distanceMeters : "",
-          status: c.status || "",
-        });
+    rows.forEach((c, idx) => {
+      const p = c.participant || {};
+
+      ws.addRow({
+        no: idx + 1,
+        studentId: p.studentId || "",
+        fullName: p.fullName || "",
+        year: p.year || "",
+        classGroup: p.classGroup || "",
+        major: p.major || "",
+        faculty: p.faculty || "",
+        email: p.email || "",
+        phone: p.phone || "",
+        checkedInAt: c.createdAt
+          ? new Date(c.createdAt).toLocaleString("th-TH")
+          : "",
+        distanceMeters: c.distanceMeters ?? "",
+        status: c.status || "",
       });
-    }
+    });
 
     const fileName = `participants_${safeFileName(event.title)}.xlsx`;
 
-    const arrayBuffer = await wb.xlsx.writeBuffer();
-    const buffer = Buffer.from(arrayBuffer as ArrayBuffer);
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${fileName}"`,
-        "Cache-Control": "no-store",
       },
     });
   } catch (e: any) {
-    const msg = String(e?.message || "");
-    if (msg === "unauthorized") {
-      // ✅ อย่าส่งแค่ {ok:false} เฉยๆ จะงง
+    if (String(e?.message) === "unauthorized") {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
-    console.error("[EXPORT_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+
+    console.error("EXPORT_ERROR:", e);
+
+    return NextResponse.json(
+      { ok: false, error: "server_error" },
+      { status: 500 }
+    );
   }
 }
