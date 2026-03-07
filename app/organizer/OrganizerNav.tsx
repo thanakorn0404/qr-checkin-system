@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarPlus, Users, Shield } from "lucide-react";
+import {
+  LayoutDashboard,
+  CalendarPlus,
+  Users,
+  Shield,
+  FileBarChart2,
+} from "lucide-react";
 
 type Me = { name?: string; role?: "student" | "organizer" | "admin"; username?: string };
 
@@ -12,7 +18,10 @@ const baseMenu = [
   { href: "/organizer/create-event", label: "สร้างกิจกรรม", icon: CalendarPlus },
 ];
 
-const adminMenu = [{ href: "/organizer/users", label: "จัดการผู้ใช้", icon: Users }];
+const adminMenu = [
+  { href: "/organizer/users", label: "จัดการผู้ใช้", icon: Users },
+  { href: "/admin/reports", label: "รายงานผลกิจกรรม", icon: FileBarChart2 },
+];
 
 function cx(...cls: (string | false | null | undefined)[]) {
   return cls.filter(Boolean).join(" ");
@@ -37,7 +46,6 @@ export default function OrganizerNav() {
 
   return (
     <aside className="rounded-3xl border border-sky-100 bg-white/80 backdrop-blur shadow-xl shadow-sky-100/60 overflow-hidden">
-      {/* Brand */}
       <div className="p-5 border-b border-sky-100">
         <div className="flex items-center gap-3">
           <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-500 shadow-md shadow-sky-200/70" />
@@ -50,7 +58,6 @@ export default function OrganizerNav() {
         </div>
       </div>
 
-      {/* User */}
       <div className="p-4 border-b border-sky-100">
         {me ? (
           <div className="flex items-center justify-between gap-3">
@@ -74,7 +81,6 @@ export default function OrganizerNav() {
         )}
       </div>
 
-      {/* Nav */}
       <div className="p-3">
         <div className="text-xs font-semibold text-slate-500 px-3 pb-2">เมนู</div>
         <nav className="space-y-1">
