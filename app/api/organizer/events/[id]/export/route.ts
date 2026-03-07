@@ -8,15 +8,16 @@ import { Checkin } from "@/models/Checkin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Ctx = { params: Promise<{ id: string }> };
-
 function safeFileName(name: string) {
   return String(name || "event")
     .replace(/[\\/:*?"<>|]/g, "_")
     .slice(0, 60) || "event";
 }
 
-export async function GET(_req: NextRequest, ctx: Ctx) {
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     const auth = await requireAuth();
 
@@ -24,7 +25,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const { id } = await ctx.params;
+    const { id } = await context.params;
 
     await connectDB();
 
